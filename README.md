@@ -32,6 +32,7 @@ It allows users to scan open ports on any IP address or domain through a clean g
 3. Run using:
 
 ```bash
+port scanner.py
 
 🎯 Recommended Test Targets
 
