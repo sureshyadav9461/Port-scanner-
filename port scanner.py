@@ -1,89 +1,94 @@
 import socket
 import threading
 import tkinter as tk
-from tkinter import messagebox, filedialog
+from tkinter import messagebox, filedialog, scrolledtext, ttk
 
-results = []  # Scan ke results yahan store honge
+results = []
 
-window = tk.Tk()
-window.title("Port Scanner")
-window.geometry("520x480")
-window.resizable(False, False)
+def scan_ports(ip, start, end):
+    total = end - start + 1
+    scanned = 0
 
-# IP ya domain lene ke liye input box
-tk.Label(window, text="Enter IP or Domain to Scan:").pack(pady=5)
-target_input = tk.Entry(window, width=42)
-target_input.pack()
+    for port in range(start, end + 1):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(0.2)
+                result = s.connect_ex((ip, port))
+                if result == 0:
+                    try:
+                        service = socket.getservbyport(port)
+                    except:
+                        service = "unknown"
+                    msg = f"Port {port} is open ({service})"
+                    result_box.insert(tk.END, msg + "\n", "green")
+                    results.append(msg)
+        except:
+            pass
 
-# Start port input
-tk.Label(window, text="Start Port:").pack(pady=5)
-start_input = tk.Entry(window, width=20)
-start_input.pack()
+        scanned += 1
+        percent = int((scanned / total) * 100)
+        progress_var.set(percent)
+        progress_bar.update()
 
-# End port input
-tk.Label(window, text="End Port:").pack(pady=5)
-end_input = tk.Entry(window, width=20)
-end_input.pack()
+    result_box.insert(tk.END, f"\n✅ Scan Complete! {scanned} ports checked.\n", "blue")
 
-# Output dikhane wala box
-output_box = tk.Text(window, height=15, width=65)
-output_box.pack(pady=8)
-
-# Yeh function ek port check karta hai open hai ya nahi
-def scan_port(ip, port):
-    try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(0.5)
-        result = sock.connect_ex((ip, port))
-        if result == 0:
-            try:
-                service = socket.getservbyport(port)
-            except:
-                service = "unknown"
-            line = f"Port {port} is open ({service})"
-            output_box.insert(tk.END, line + "\n")
-            results.append(line)
-        sock.close()
-    except:
-        pass
-
-# Jab user scan button dabaye, yeh function call hota hai
 def start_scan():
-    ip = target_input.get().strip()
+    results.clear()
+    result_box.delete(1.0, tk.END)
     try:
-        start_port = int(start_input.get().strip())
-        end_port = int(end_input.get().strip())
+        ip = ip_entry.get().strip()
+        start = int(start_entry.get().strip())
+        end = int(end_entry.get().strip())
     except:
-        messagebox.showerror("Error", "Ports must be valid numbers.")
+        messagebox.showerror("Invalid Input", "Please enter valid values.")
         return
 
-    output_box.delete(1.0, tk.END)
-    output_box.insert(tk.END, f"Scanning {ip} from port {start_port} to {end_port}...\n\n")
-    results.clear()
+    progress_var.set(0)
+    t = threading.Thread(target=scan_ports, args=(ip, start, end))
+    t.start()
 
-    # Har port ke liye ek thread banake scan karte hain
-    for port in range(start_port, end_port + 1):
-        t = threading.Thread(target=scan_port, args=(ip, port))
-        t.start()
-
-# Agar user results ko file me save karna chahe
 def save_results():
     if not results:
-        messagebox.showwarning("No Results", "Nothing to save yet.")
+        messagebox.showwarning("No Result", "Nothing to save.")
         return
-
     path = filedialog.asksaveasfilename(defaultextension=".txt",
-                                        filetypes=[("Text files", "*.txt")],
-                                        title="Save results as...")
+                                        filetypes=[("Text Files", "*.txt")],
+                                        title="Save Result")
     if path:
         with open(path, "w") as f:
             f.write("\n".join(results))
         messagebox.showinfo("Saved", f"Results saved to:\n{path}")
 
-# Button: Start Scan
-tk.Button(window, text="Start Scan", command=start_scan, bg="green", fg="white").pack(pady=6)
+# --- GUI ---
+root = tk.Tk()
+root.title("🚀 Port Scanner with Progress")
+root.geometry("580x570")
+root.resizable(False, False)
+root.config(bg="#f2f2f2")
 
-# Button: Save Result
-tk.Button(window, text="Save Results", command=save_results, bg="blue", fg="white").pack(pady=4)
+tk.Label(root, text="Target IP / Domain:", font=("Segoe UI", 10), bg="#f2f2f2").pack(pady=5)
+ip_entry = tk.Entry(root, width=40, font=("Segoe UI", 10))
+ip_entry.pack()
 
-window.mainloop()
+tk.Label(root, text="Start Port:", font=("Segoe UI", 10), bg="#f2f2f2").pack(pady=4)
+start_entry = tk.Entry(root, width=20, font=("Segoe UI", 10))
+start_entry.pack()
+
+tk.Label(root, text="End Port:", font=("Segoe UI", 10), bg="#f2f2f2").pack(pady=4)
+end_entry = tk.Entry(root, width=20, font=("Segoe UI", 10))
+end_entry.pack()
+
+tk.Button(root, text="Start Scan", command=start_scan, bg="green", fg="white", width=20).pack(pady=8)
+tk.Button(root, text="Save Results", command=save_results, bg="blue", fg="white", width=20).pack(pady=2)
+
+progress_var = tk.DoubleVar()
+progress_bar = ttk.Progressbar(root, variable=progress_var, maximum=100, length=500)
+progress_bar.pack(pady=10)
+
+result_box = scrolledtext.ScrolledText(root, height=20, width=70, font=("Consolas", 10))
+result_box.pack(padx=10, pady=10)
+
+result_box.tag_config("green", foreground="green")
+result_box.tag_config("blue", foreground="blue")
+
+root.mainloop()
